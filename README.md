@@ -1,6 +1,6 @@
 # ITIA 1510 – Cybersecurity Automation
 
-**Name:** Darnell Jackson
+**Student Name:** Darnell Jackson
 
 ## About this Repository
 
