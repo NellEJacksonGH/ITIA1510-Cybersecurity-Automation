@@ -27,7 +27,7 @@ length_score = password_length * 10
 rotation_count = 36 // rotation_interval
 
 # This displays the completed password audit report using the information and calculations from above.
-## print() is the function used to display the text and calculated values in the console. f-strings allow the variables inside {} to be inserted into the output.
+## print() is the function used to display the text and calculated values in the console. f-strings allow the variables inside {} to be inserted into the output. 
 print("========================================")
 print("   PASSWORD AUDIT REPORT")
 print("========================================")
