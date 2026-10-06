@@ -13,18 +13,32 @@ known_breached = [
 ]
 
 
-def check_length(password):
-    """Checks password length and returns whether it meets the 15-character requirement and its verdict."""
+# Policy is outside the main block so functions and the test file can import
+# and use the same security rules.
+policy = {
+    "min_length": 8,
+    "strong_length": 15,
+    "max_rotation_months": 12,
+    "good_rotation_months": 6,
+    "require_digit": True,
+    "check_breach_list": True
+}
+
+
+def check_length(password, policy):
+    """Checks password length and returns whether it meets the strong-length requirement and its verdict."""
 
     password_length = len(password)
 
-    if password_length < 8:
+    # Reading limits from policy is better than hardcoding them because
+    # changing the rule in one place updates every function that uses it.
+    if password_length < policy["min_length"]:
         length_ok = False
         length_verdict = "WEAK -- does not meet minimum length requirements"
     elif password_length <= 11:
         length_ok = False
         length_verdict = "MODERATE -- meets minimum but falls short of NIST recommendations"
-    elif password_length <= 14:
+    elif password_length < policy["strong_length"]:
         length_ok = False
         length_verdict = "GOOD -- acceptable length for most systems"
     else:
@@ -37,7 +51,7 @@ def check_length(password):
 def check_digit(password):
     """Checks whether the password contains a digit and returns True or False."""
 
-    # A for loop walks through each character, while "in" can directly check membership in a list.
+    # A for loop walks through each character of the password.
     has_digit = False
 
     for char in password:
@@ -55,13 +69,13 @@ def check_username(password, username):
     return not_username
 
 
-def check_rotation(rotation_interval):
-    """Checks the password rotation interval and returns whether it is acceptable and its verdict."""
+def check_rotation(rotation_interval, policy):
+    """Checks the password rotation interval using the policy dictionary."""
 
-    if rotation_interval > 12:
+    if rotation_interval > policy["max_rotation_months"]:
         rotation_ok = False
         rotation_verdict = "WARNING -- rotation interval exceeds recommended maximum of 12 months"
-    elif rotation_interval >= 6:
+    elif rotation_interval >= policy["good_rotation_months"]:
         rotation_ok = True
         rotation_verdict = "ACCEPTABLE -- rotation interval within recommended range"
     else:
@@ -79,22 +93,32 @@ def check_breach(password, known_breached):
     return not_breached
 
 
-def audit_password(account, username, password, rotation_interval, known_breached):
+def audit_password(account, username, password, rotation_interval,
+                   known_breached, policy):
     """Audits one password, prints the full report, and returns pass, fail, and critical counters."""
 
     password_length = len(password)
     length_score = password_length * 10
     rotation_count = 36 // rotation_interval
 
-    # Call the password-checking functions to get each result.
-    length_ok, length_verdict = check_length(password)
+    # Call the password-checking functions and pass policy where needed.
+    length_ok, length_verdict = check_length(password, policy)
     has_digit = check_digit(password)
     not_username = check_username(password, username)
-    rotation_ok, rotation_verdict = check_rotation(rotation_interval)
+    rotation_ok, rotation_verdict = check_rotation(rotation_interval, policy)
     not_breached = check_breach(password, known_breached)
 
-    # All four required conditions must be true for an overall pass.
-    overall_pass = length_ok and has_digit and not_username and not_breached
+    # These policy settings control whether digit and breach checks are required.
+    digit_requirement_met = has_digit or not policy["require_digit"]
+    breach_requirement_met = not_breached or not policy["check_breach_list"]
+
+    # All required conditions must be true for an overall pass.
+    overall_pass = (
+        length_ok
+        and digit_requirement_met
+        and not_username
+        and breach_requirement_met
+    )
 
     if overall_pass:
         passed = 1
@@ -103,8 +127,8 @@ def audit_password(account, username, password, rotation_interval, known_breache
         passed = 0
         failed = 1
 
-    # A password is critical if it matches the username or appears in the breach list.
-    if not_username and not_breached:
+    # A password is critical if it matches the username or is on the breach list.
+    if not_username and breach_requirement_met:
         critical = 0
     else:
         critical = 1
@@ -152,65 +176,98 @@ def audit_password(account, username, password, rotation_interval, known_breache
 
 
 if __name__ == '__main__':
-    # These credential records replace the interactive input loop from previous weeks.
+
+    # Each credential is now a dictionary, so values are read by key name
+    # instead of depending on their position inside a list.
     credentials = [
-        ["Gmail", "jsmith", "password123", 12],
-        ["SSH Server", "jsmith", "jsmith", 24],
-        ["VPN", "jsmith", "Tr0ub4dor&3correct", 3],
-        ["Company Email", "jsmith", "summer2024!", 6],
-        ["GitHub", "jsmith", "Blue-Harbor-72-Lantern", 6],
+        {
+            "account": "Gmail",
+            "username": "jsmith",
+            "password": "password123",
+            "rotation_interval": 12
+        },
+        {
+            "account": "SSH Server",
+            "username": "jsmith",
+            "password": "jsmith",
+            "rotation_interval": 24
+        },
+        {
+            "account": "VPN",
+            "username": "jsmith",
+            "password": "Tr0ub4dor&3correct",
+            "rotation_interval": 3
+        },
+        {
+            "account": "Company Email",
+            "username": "jsmith",
+            "password": "summer2024!",
+            "rotation_interval": 6
+        },
+        {
+            "account": "GitHub",
+            "username": "jsmith",
+            "password": "Blue-Harbor-72-Lantern",
+            "rotation_interval": 6
+        }
     ]
 
-    # These lists store account names that fail or receive a critical flag.
-    failed_accounts = []
-    critical_accounts = []
+    # One dictionary now stores all batch counters and account-name lists.
+    summary = {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "critical": 0,
+        "failed_accounts": [],
+        "critical_accounts": []
+    }
 
-    # Loop through each credential record and audit it.
-    for credential in credentials:
+    # Loop through each credential dictionary.
+    for cred in credentials:
 
-        # Get each value from the credential record by index.
-        account = credential[0]
-        username = credential[1]
-        password = credential[2]
-        rotation_interval = credential[3]
-
-        # Run the audit and receive the pass, fail, and critical results.
+        # Read credential values by their key names instead of index positions.
         passed, failed, critical = audit_password(
-            account,
-            username,
-            password,
-            rotation_interval,
-            known_breached
+            cred["account"],
+            cred["username"],
+            cred["password"],
+            cred["rotation_interval"],
+            known_breached,
+            policy
         )
 
-        # Add failed accounts to the failed_accounts list.
-        if failed:
-            failed_accounts.append(account)
+        # Update all batch totals inside the summary dictionary.
+        summary["total"] += 1
+        summary["passed"] += passed
+        summary["failed"] += failed
+        summary["critical"] += critical
 
-        # Add critical accounts to the critical_accounts list.
+        if failed:
+            summary["failed_accounts"].append(cred["account"])
+
         if critical:
-            critical_accounts.append(account)
+            summary["critical_accounts"].append(cred["account"])
 
     print("========================================")
     print("   BATCH AUDIT SUMMARY")
     print("========================================")
-    print("Credentials audited: " + str(len(credentials)))
-    print("Passed:              " + str(len(credentials) - len(failed_accounts)))
-    print("Failed:              " + str(len(failed_accounts)))
+    print("Credentials audited: " + str(summary["total"]))
+    print("Passed:              " + str(summary["passed"]))
+    print("Failed:              " + str(summary["failed"]))
     print("----------------------------------------")
 
-    if failed_accounts:
-        print("Failed accounts:     " + ", ".join(failed_accounts))
+    if summary["failed_accounts"]:
+        print("Failed accounts:     " + ", ".join(summary["failed_accounts"]))
     else:
         print("Failed accounts:     None")
 
-    print("Critical flags:      " + str(len(critical_accounts)))
+    # .get() safely returns 0 if the critical key is ever missing.
+    print("Critical flags:      " + str(summary.get("critical", 0)))
 
-    if critical_accounts:
-        print("Critical accounts:   " + ", ".join(critical_accounts))
+    if summary["critical_accounts"]:
+        print("Critical accounts:   " + ", ".join(summary["critical_accounts"]))
     else:
         print("Critical accounts:   None")
 
     print("----------------------------------------")
-    print("NOTE: Breach list and credentials are hardcoded -- file reading coming in Week 08.")
+    print("NOTE: Credentials and breach list are hardcoded -- file reading coming in Week 07.")
     print("========================================")
