@@ -1,12 +1,18 @@
+
 from password_checker import (
     check_length,
     check_digit,
     check_username,
     check_rotation,
     check_breach,
-    known_breached,
+    load_credentials,
+    load_breached,
+    write_report,
     policy
 )
+
+# Week 07: Load the breach list from the text file.
+known_breached = load_breached("breached.txt")
 
 
 # Test check_length()
@@ -53,7 +59,7 @@ assert check_breach("Blue-Harbor-72-Lantern", known_breached) is True
 print("PASS: check_breach() returns True for a password not in the breach list")
 
 
-# Week 06 policy dictionary tests
+# Week 06 policy dictionary tests.
 assert policy["strong_length"] == 15
 print("PASS: policy strong_length is 15")
 
@@ -65,6 +71,34 @@ print("PASS: policy min_length is 8")
 
 assert policy["max_rotation_months"] == 12
 print("PASS: policy max_rotation_months is 12")
+
+
+# Week 07: Test load_credentials()
+credentials = load_credentials("credentials.txt")
+
+assert isinstance(credentials, list)
+print("PASS: load_credentials() returns a list")
+
+assert "account" in credentials[0]
+print("PASS: first credential contains an account key")
+
+
+# Week 07: Test load_breached()
+assert isinstance(known_breached, list)
+print("PASS: load_breached() returns a list")
+
+assert "password123" in known_breached
+print("PASS: load_breached() contains password123")
+
+
+# Week 07: Test write_report()
+write_report(["first line", "second line"], "test_report.txt")
+
+with open("test_report.txt", "r") as f:
+    saved_report = f.read()
+
+assert saved_report == "first line\nsecond line\n"
+print("PASS: write_report() saves two lines correctly")
 
 
 print("ALL TESTS PASSED")
