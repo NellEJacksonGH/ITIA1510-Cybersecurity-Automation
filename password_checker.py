@@ -1,5 +1,6 @@
 
 import json
+import os
 
 # Security rules are shared by the password checks and tests.
 policy = {
@@ -8,15 +9,15 @@ policy = {
     "max_rotation_months": 12,
     "good_rotation_months": 6,
     "require_digit": True,
-    "check_breach_list": True
+    "check_breach_list": True,
+    "history_runs": 3
 }
 
 
 def check_length(password, policy):
-    """Checks password length and returns whether it meets the strong-length requirement and its verdict."""
+    """Check password length using the security policy."""
     password_length = len(password)
-    # Reading limits from policy is better than hardcoding them because
-    # changing the rule in one place updates every function that uses it.
+
     if password_length < policy["min_length"]:
         length_ok = False
         length_verdict = "WEAK -- does not meet minimum length requirements"
@@ -29,26 +30,28 @@ def check_length(password, policy):
     else:
         length_ok = True
         length_verdict = "STRONG -- meets NIST SP 800-63B recommendations"
+
     return length_ok, length_verdict
 
 
 def check_digit(password):
-    """Checks whether the password contains a digit and returns True or False."""
+    """Check whether the password contains a digit."""
     has_digit = False
+
     for char in password:
-        if char in '0123456789':
+        if char in "0123456789":
             has_digit = True
+
     return has_digit
 
 
 def check_username(password, username):
-    """Checks whether the password is different from the username and returns True or False."""
-    not_username = password != username
-    return not_username
+    """Check whether the password differs from the username."""
+    return password != username
 
 
 def check_rotation(rotation_interval, policy):
-    """Checks the password rotation interval using the policy dictionary."""
+    """Check the password rotation interval."""
     if rotation_interval > policy["max_rotation_months"]:
         rotation_ok = False
         rotation_verdict = "WARNING -- rotation interval exceeds recommended maximum of 12 months"
@@ -58,90 +61,138 @@ def check_rotation(rotation_interval, policy):
     else:
         rotation_ok = True
         rotation_verdict = "EXCELLENT -- frequent rotation policy detected"
+
     return rotation_ok, rotation_verdict
 
 
 def check_breach(password, known_breached):
-    """Checks whether a password is not in the known breached password list."""
-    not_breached = password not in known_breached
-    return not_breached
+    """Check whether a password is absent from the breach list."""
+    return password not in known_breached
 
 
 def load_breached(filepath):
-    """Read the breached password file. Returns a list of password strings."""
+    """Load breached passwords from a text file."""
     known_breached = []
+
     with open(filepath, "r") as f:
         for line in f:
             line = line.strip()
             if line != "":
                 known_breached.append(line)
+
     return known_breached
 
 
 def load_credentials(filepath):
-    """Read credentials from a CSV-style text file into dictionaries."""
+    """Load credentials from a CSV-style text file."""
     credentials = []
+
     with open(filepath, "r") as f:
         for line in f:
             line = line.strip()
+
             if line == "":
                 continue
+
             fields = line.split(",")
+
             credentials.append({
                 "account": fields[0],
                 "username": fields[1],
                 "password": fields[2],
-                "rotation_interval": int(fields[3]),
+                "rotation_interval": int(fields[3])
             })
+
     return credentials
 
 
 def write_report(report_lines, filepath):
-    """Write each string in report_lines to the file as one line."""
+    """Write the audit report to a text file."""
     with open(filepath, "w") as f:
         for line in report_lines:
             f.write(line + "\n")
 
 
 def save_summary(summary, filepath):
-    """Save the summary dictionary to a JSON file."""
-    # Write the audit summary as formatted JSON.
+    """Save the latest audit summary as JSON."""
     with open(filepath, "w") as f:
         json.dump(summary, f, indent=2)
 
 
 def load_summary(filepath):
-    """Read a JSON summary file and return the dictionary."""
-    # Load the saved JSON data back into Python.
+    """Load an existing audit summary from JSON."""
     with open(filepath, "r") as f:
         return json.load(f)
 
 
+# Week 10: Load previous audit runs.
+def load_history(filepath):
+    # A missing file means this is the first audit, so start with an empty list.
+    if not os.path.exists(filepath):
+        return []
+
+    with open(filepath, "r") as f:
+        return json.load(f)
+
+
+# Week 10: Add one audit run and keep the newest entries.
+def add_to_history(history, summary, keep):
+    # Use the newest run number, not len(history), because trimming changes the list length.
+    if history:
+        run_number = history[-1]["run"] + 1
+    else:
+        run_number = 1
+
+    entry = {
+        "run": run_number,
+        "passed": summary["passed"],
+        "failed": summary["failed"],
+        "critical_accounts": summary["critical_accounts"]
+    }
+
+    history.append(entry)
+
+    # Trim the history so it keeps only the newest runs and does not grow forever.
+    return history[-keep:]
+
+
+# Week 10: Save the updated history to JSON.
+def save_history(history, filepath):
+    with open(filepath, "w") as f:
+        json.dump(history, f, indent=2)
+
+
 def audit_password(account, username, password, rotation_interval,
                    known_breached, policy, report_lines):
-    """Audits one password, collects the report, and returns pass, fail, and critical counters."""
+    """Audit one password and return pass, fail, and critical counters."""
+
     password_length = len(password)
     length_score = password_length * 10
     rotation_count = 36 // rotation_interval
+
     length_ok, length_verdict = check_length(password, policy)
     has_digit = check_digit(password)
     not_username = check_username(password, username)
     rotation_ok, rotation_verdict = check_rotation(rotation_interval, policy)
     not_breached = check_breach(password, known_breached)
+
     digit_requirement_met = has_digit or not policy["require_digit"]
     breach_requirement_met = not_breached or not policy["check_breach_list"]
+
     overall_pass = (
         length_ok
         and digit_requirement_met
         and not_username
         and breach_requirement_met
     )
+
     if overall_pass:
         passed = 1
         failed = 0
     else:
         passed = 0
         failed = 1
+
     if not_username and breach_requirement_met:
         critical = 0
     else:
@@ -158,34 +209,42 @@ def audit_password(account, username, password, rotation_interval,
     report_lines.append("Rotations (3 yr):  " + str(rotation_count))
     report_lines.append("----------------------------------------")
     report_lines.append("Length verdict:    " + length_verdict)
+
     if has_digit:
         report_lines.append("Digit found:       YES")
     else:
         report_lines.append("Digit found:       NO")
+
     if not_username:
         report_lines.append("Username match:    NO")
     else:
         report_lines.append("Username match:    YES")
         report_lines.append("CRITICAL -- password must not match username.")
+
     if not_breached:
         report_lines.append("Breach check:      PASS -- password not found in known breach list")
     else:
         report_lines.append("Breach check:      CRITICAL -- password found in known breach list")
+
     report_lines.append("Rotation verdict:  " + rotation_verdict)
     report_lines.append("----------------------------------------")
+
     if overall_pass:
         report_lines.append("OVERALL: PASS -- password meets all checked criteria")
     else:
         report_lines.append("OVERALL: FAIL -- see findings above")
+
     report_lines.append("========================================")
     report_lines.append("")
+
     return passed, failed, critical
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     credentials = load_credentials("credentials.txt")
     known_breached = load_breached("breached.txt")
     report_lines = []
+
     summary = {
         "total": 0,
         "passed": 0,
@@ -194,6 +253,7 @@ if __name__ == '__main__':
         "failed_accounts": [],
         "critical_accounts": []
     }
+
     for cred in credentials:
         passed, failed, critical = audit_password(
             cred["account"],
@@ -204,12 +264,15 @@ if __name__ == '__main__':
             policy,
             report_lines
         )
+
         summary["total"] += 1
         summary["passed"] += passed
         summary["failed"] += failed
         summary["critical"] += critical
+
         if failed:
             summary["failed_accounts"].append(cred["account"])
+
         if critical:
             summary["critical_accounts"].append(cred["account"])
 
@@ -220,20 +283,28 @@ if __name__ == '__main__':
     report_lines.append("Passed:              " + str(summary["passed"]))
     report_lines.append("Failed:              " + str(summary["failed"]))
     report_lines.append("----------------------------------------")
+
     if summary["failed_accounts"]:
         report_lines.append("Failed accounts:     " + ", ".join(summary["failed_accounts"]))
     else:
         report_lines.append("Failed accounts:     None")
-    report_lines.append("Critical flags:      " + str(summary.get("critical", 0)))
+
+    report_lines.append("Critical flags:      " + str(summary["critical"]))
+
     if summary["critical_accounts"]:
         report_lines.append("Critical accounts:   " + ", ".join(summary["critical_accounts"]))
     else:
         report_lines.append("Critical accounts:   None")
+
     report_lines.append("========================================")
 
     for line in report_lines:
         print(line)
-    write_report(report_lines, "report.txt")
 
-    # Save the batch results for other programs without including passwords.
+    write_report(report_lines, "report.txt")
     save_summary(summary, "audit_summary.json")
+
+    # Week 10: Update the audit history without printing extra output.
+    history = load_history("audit_history.json")
+    history = add_to_history(history, summary, policy["history_runs"])
+    save_history(history, "audit_history.json")
