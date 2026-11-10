@@ -8,6 +8,10 @@ from password_checker import (
     check_rotation,
     check_breach,
     breach_verdicts,
+    length_verdicts,
+    rotation_verdicts,
+    CHECK_NAMES,
+    run_check,
     load_credentials,
     load_breached,
     write_report,
@@ -180,6 +184,97 @@ for credential in credentials:
 assert "password" not in result_json.lower()
 
 print("PASS: breach_verdicts does not expose passwords in JSON")
+
+
+# ========================================
+# Week 12 Tests - length_verdicts()
+# ========================================
+
+# Test 1: Verify that the VPN account has
+# a password that meets the length requirement.
+
+credentials = load_credentials("credentials.txt")
+
+result = length_verdicts(
+    "jsmith",
+    credentials,
+    known_breached
+)
+
+assert result["username"] == "jsmith"
+
+assert result["accounts"][2] == {
+    "account": "VPN",
+    "long_enough": True
+}
+
+print("PASS: length_verdicts returned the correct VPN length verdict")
+
+
+# ========================================
+# Week 12 Tests - rotation_verdicts()
+# ========================================
+
+# Test 2: Verify that the SSH Server account
+# has an unacceptable rotation interval.
+
+result = rotation_verdicts(
+    "jsmith",
+    credentials,
+    known_breached
+)
+
+assert result["username"] == "jsmith"
+
+assert result["accounts"][1] == {
+    "account": "SSH Server",
+    "rotation_months": 24,
+    "rotation_ok": False
+}
+
+print("PASS: rotation_verdicts returned the correct SSH Server rotation verdict")
+
+
+# ========================================
+# Week 12 Tests - run_check()
+# ========================================
+
+# Test 3: Verify that run_check() produces
+# the same breach result as breach_verdicts().
+
+result = run_check(
+    "check_breach",
+    "jsmith",
+    credentials,
+    known_breached
+)
+
+expected = breach_verdicts(
+    "jsmith",
+    credentials,
+    known_breached
+)
+
+assert result == expected
+
+print("PASS: run_check returned the same result as breach_verdicts")
+
+
+# Test 4: Verify that run_check() refuses
+# any name that is not an allowed check.
+
+result = run_check(
+    "reset_password",
+    "jsmith",
+    credentials,
+    known_breached
+)
+
+assert result == {
+    "error": "unknown check"
+}
+
+print("PASS: run_check refused a name that is not one of its checks")
 
 
 print("ALL TESTS PASSED")

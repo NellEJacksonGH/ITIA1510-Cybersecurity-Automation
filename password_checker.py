@@ -102,6 +102,97 @@ def breach_verdicts(username, credentials, known_breached):
     return result
 
 
+def length_verdicts(username, credentials, known_breached):
+    """Return length verdicts for one user's accounts without passwords."""
+
+    result = {
+        "username": username,
+        "accounts": []
+    }
+
+    for credential in credentials:
+        if credential["username"] == username:
+            long_enough, _ = check_length(
+                credential["password"],
+                policy
+            )
+
+            result["accounts"].append({
+                "account": credential["account"],
+                "long_enough": long_enough
+            })
+
+    return result
+
+
+def rotation_verdicts(username, credentials, known_breached):
+    """Return rotation verdicts for one user's accounts."""
+
+    # known_breached is unused but keeps all verdict functions'
+    # parameters consistent so run_check() can call them alike.
+    result = {
+        "username": username,
+        "accounts": []
+    }
+
+    for credential in credentials:
+        if credential["username"] == username:
+            rotation_months = credential["rotation_interval"]
+
+            rotation_ok, _ = check_rotation(
+                rotation_months,
+                policy
+            )
+
+            result["accounts"].append({
+                "account": credential["account"],
+                "rotation_months": rotation_months,
+                "rotation_ok": rotation_ok
+            })
+
+    return result
+
+
+# These names must exactly match the conditions in run_check()
+# so each requested check runs the correct verdict function.
+CHECK_NAMES = [
+    "check_breach",
+    "check_length",
+    "check_rotation"
+]
+
+
+def run_check(name, username, credentials, known_breached):
+    """Run one of the three allowed checks by name."""
+
+    if name == "check_breach":
+        result = breach_verdicts(
+            username,
+            credentials,
+            known_breached
+        )
+
+    elif name == "check_length":
+        result = length_verdicts(
+            username,
+            credentials,
+            known_breached
+        )
+
+    elif name == "check_rotation":
+        result = rotation_verdicts(
+            username,
+            credentials,
+            known_breached
+        )
+
+    else:
+        # Reject unknown names so unauthorized operations cannot run.
+        result = {"error": "unknown check"}
+
+    return result
+
+
 def load_breached(filepath):
     """Load known breached passwords from a text file."""
     known_breached = []
@@ -396,3 +487,20 @@ if __name__ == "__main__":
         json.dump(verdicts, file, indent=2)
 
     print("\nBreach verdicts saved to breach_check.json")
+
+    # Week 12: Run all three checks for jsmith.
+    all_checks = {}
+
+    for name in CHECK_NAMES:
+        all_checks[name] = run_check(
+            name,
+            "jsmith",
+            credentials,
+            known_breached
+        )
+
+    # Save all three verdict results in one JSON file.
+    with open("all_checks.json", "w") as file:
+        json.dump(all_checks, file, indent=2)
+
+    print("All check verdicts saved to all_checks.json")

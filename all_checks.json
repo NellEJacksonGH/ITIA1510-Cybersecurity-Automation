@@ -1,0 +1,82 @@
+{
+  "check_breach": {
+    "username": "jsmith",
+    "accounts": [
+      {
+        "account": "Gmail",
+        "on_breach_list": true
+      },
+      {
+        "account": "SSH Server",
+        "on_breach_list": false
+      },
+      {
+        "account": "VPN",
+        "on_breach_list": false
+      },
+      {
+        "account": "Company Email",
+        "on_breach_list": false
+      },
+      {
+        "account": "GitHub",
+        "on_breach_list": false
+      }
+    ]
+  },
+  "check_length": {
+    "username": "jsmith",
+    "accounts": [
+      {
+        "account": "Gmail",
+        "long_enough": false
+      },
+      {
+        "account": "SSH Server",
+        "long_enough": false
+      },
+      {
+        "account": "VPN",
+        "long_enough": true
+      },
+      {
+        "account": "Company Email",
+        "long_enough": false
+      },
+      {
+        "account": "GitHub",
+        "long_enough": true
+      }
+    ]
+  },
+  "check_rotation": {
+    "username": "jsmith",
+    "accounts": [
+      {
+        "account": "Gmail",
+        "rotation_months": 12,
+        "rotation_ok": true
+      },
+      {
+        "account": "SSH Server",
+        "rotation_months": 24,
+        "rotation_ok": false
+      },
+      {
+        "account": "VPN",
+        "rotation_months": 3,
+        "rotation_ok": true
+      },
+      {
+        "account": "Company Email",
+        "rotation_months": 6,
+        "rotation_ok": true
+      },
+      {
+        "account": "GitHub",
+        "rotation_months": 6,
+        "rotation_ok": true
+      }
+    ]
+  }
+}
